@@ -1,11 +1,13 @@
 """CPU functionality."""
 
 import sys
+import os.path
 
 
 HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
+MUL = 0b10100010
 
 class CPU:
     """Main CPU class."""
@@ -32,15 +34,29 @@ class CPU:
         # SP points at the value at the top of the stack (most recently pushed), or at address F4 if the stack is empty.
         self.reg[7] = 0xF4 # 244 # int('F4', 16)
 
+        # Setup Branch Table
+        self.branchtable = {}
+        self.branchtable[HLT] = self.execute_HLT
+        self.branchtable[LDI] = self.execute_LDI
+        self.branchtable[PRN] = self.execute_PRN
+        self.branchtable[MUL] = self.execute_MUL
+
 
     # Property wrapper for SP (Stack Pointer)
     @property
     def sp(self):
         return self.reg[7]
+        
 
     @sp.setter
     def sp(self, a):
         self.reg[7] = a & 0xFF
+
+    def instruction_size(self):
+        return ((self.ir >> 6) & 0b11) + 1
+
+    def instruction_sets_pc(self):
+        return ((self.ir >> 4) & 0b0001) == 1
 
     def ram_read(self, mar):
         if mar >= 0 and mar < len(self.ram):
@@ -55,7 +71,7 @@ class CPU:
         else:
             print(f"Error: Attempted to write to memory address: {mar}, which is outside of the memory bounds.")
 
-    def load(self, program):
+    def load(self, file_name):
         """Load a program into memory."""
 
         address = 0
@@ -72,9 +88,24 @@ class CPU:
             0b00000001, # HLT
         ]
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        #for instruction in program:
+            #self.ram[address] = instruction
+            #address += 1
+
+        file_path = os.path.join(os.path.dirname(__file__), file_name)
+        try:
+            with open(file_path) as f:
+                for line in f:
+                    num = line.split("#")[0].strip() # "10000010"
+                    try:
+                        instruction = int(num, 2)
+                        self.ram[address] = instruction
+                        address += 1
+                    except:
+                        continue
+        except:
+            print(f'Could not find file named: {file_name}')
+            sys.exit(1)
 
 
     def alu(self, op, reg_a, reg_b):
@@ -106,6 +137,8 @@ class CPU:
 
         print()
 
+        # Run Loop
+
     def run(self):
         """Run the CPU."""
         #running = True
@@ -115,6 +148,13 @@ class CPU:
             self.ir = self.ram_read(self.pc)
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
+
+            #instructionSize = ((self.ir >> 6) & 0b11) + 1
+            #self.pc += instructionSize
+
+            if not self.instruction_sets_pc():
+                self.pc += self.instruction_size()
+
 
             # Decode instruction
            # binary_ir = bin(self.ir)[2:].zfill(8)
@@ -150,7 +190,25 @@ class CPU:
         elif self.ir == PRN:
             print(self.reg[operand_a])
             self.pc += 2
+        elif self.ir == MUL:
+            self.reg[operand_a] *= self.reg[operand_b]
+            self.pc += 3
+        if self.ir in self.branchtable:
+            self.branchtable[self.ir](operand_a, operand_b)
         else:
-            print(f"Error: Could not execute instruction: {self.ir}")
+            print(f"Error: Could not find instruction: {self.ir} in branch table.")
             sys.exit(1)
    
+     # Define operations to be loaded into the branch table
+
+    def execute_HLT(self, operand_a, operand_b):
+        self.halted = True
+
+    def execute_LDI(self, operand_a, operand_b):
+        self.reg[operand_a] = operand_b
+
+    def execute_PRN(self, operand_a, operand_b):
+        print(self.reg[operand_a])
+
+    def execute_MUL(self, operand_a, operand_b):
+        self.reg[operand_a] *= self.reg[operand_b]
