@@ -65,6 +65,9 @@ but you'll have to implement those three above instructions first!
 * Read this whole file.
 * Skim the spec.
 
+1. cpu.py - Defines a CPU class that emulates a LS-8 Microcomputer
+2. ls8.py - Uses a CPU instance to run a program
+
 ## Step 1: Add the constructor to `cpu.py`
 
 Add list properties to the `CPU` class to hold 256 bytes of memory and 8
